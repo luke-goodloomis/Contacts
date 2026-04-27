@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Manager Pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>📇 Contact Manager</h1>
+                <div class="header-actions">
+                    <div class="stats">
+                        <span id="stat-total" class="stat-item">
+                            <strong id="stat-count">0</strong> contacts
+                        </span>
+                        <span id="stat-companies" class="stat-item">
+                            <strong id="company-count">0</strong> companies
+                        </span>
+                    </div>
+                    <button class="btn btn-secondary" onclick="showOCRModal()" title="Upload business card or name tag">📸 Scan Card</button>
+                    <button class="btn btn-primary" onclick="showNewContactForm()">+ New Contact</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Sidebar - Filters -->
+            <aside class="sidebar">
+                <div class="filter-section">
+                    <h3>Filters</h3>
+                    
+                    <div class="filter-group">
+                        <label for="search-input">Search</label>
+                        <input 
+                            type="text" 
+                            id="search-input" 
+                            placeholder="Name, email, company..."
+                            class="search-box"
+                            onkeyup="handleSearch()"
+                        >
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="company-filter">Company</label>
+                        <select id="company-filter" class="filter-select" onchange="handleFilter()">
+                            <option value="">All Companies</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="sort-select">Sort By</label>
+                        <select id="sort-select" class="filter-select" onchange="handleSort()">
+                            <option value="last_name">Last Name</option>
+                            <option value="first_name">First Name</option>
+                            <option value="company">Company</option>
+                            <option value="email">Email</option>
+                            <option value="updated_at">Recently Updated</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-secondary" style="width: 100%; margin-top: 1rem;" onclick="resetFilters()">
+                        Reset Filters
+                    </button>
+
+                    <!-- Paste New Contact Section -->
+                    <div class="filter-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e0e0e0;">
+                        <h3>📋 Paste New Contact</h3>
+                        <div class="filter-group">
+                            <label for="paste-input">Paste contact text here:</label>
+                            <textarea 
+                                id="paste-input" 
+                                placeholder="Name&#10;Email (optional)&#10;Phone numbers&#10;Company&#10;Title"
+                                class="paste-textarea"
+                                rows="10"
+                            ></textarea>
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%;" onclick="handleParseContact()">
+                            Parse & Check
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Content Area -->
+            <main class="contacts-area">
+                <!-- Contacts List -->
+                <div class="contacts-list-container">
+                    <div id="contacts-list" class="contacts-list">
+                        <div class="loading">Loading contacts...</div>
+                    </div>
+                </div>
+
+                <!-- Contact Details Panel -->
+                <div id="details-panel" class="details-panel hidden">
+                    <div class="details-header">
+                        <h2 id="details-name"></h2>
+                        <button class="btn-close" onclick="closeDetailsPanel()">✕</button>
+                    </div>
+                    <div class="details-content" id="details-content"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal for New/Edit Contact -->
+    <div id="contact-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">New Contact</h2>
+                <button class="btn-close" onclick="closeModal()">✕</button>
+            </div>
+            <form id="contact-form" onsubmit="handleSaveContact(event)">
+                <div class="form-group">
+                    <label for="form-email">Email * <span class="required">(required)</span></label>
+                    <input type="email" id="form-email" required readonly style="background: #f5f5f5;">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="form-first-name">First Name</label>
+                        <input type="text" id="form-first-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="form-last-name">Last Name</label>
+                        <input type="text" id="form-last-name" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="form-company">Company</label>
+                    <input type="text" id="form-company">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="form-phone">Phone</label>
+                        <input type="tel" id="form-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-mobile">Mobile/Cell</label>
+                        <input type="tel" id="form-mobile">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="form-notes">Notes</label>
+                    <textarea id="form-notes" rows="3" placeholder="Additional information..."></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Contact</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="button" id="delete-btn" class="btn btn-danger hidden" onclick="handleDeleteContact()">Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for OCR Image Upload -->
+    <div id="ocr-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>📸 Extract Contact from Image</h2>
+                <button class="btn-close" onclick="closeOCRModal()">✕</button>
+            </div>
+            
+            <div id="ocr-upload-area" class="ocr-upload-area">
+                <div class="upload-icon">📷</div>
+                <p class="upload-text">Drag and drop image or click to select</p>
+                <p class="upload-subtext">Supported: JPG, PNG, GIF, TIFF, BMP (max 10MB)</p>
+                <input type="file" id="ocr-file-input" accept="image/*" style="display: none;">
+            </div>
+            
+            <div id="ocr-preview" class="ocr-preview hidden">
+                <img id="ocr-image-preview" src="" alt="Preview" style="max-width: 100%; max-height: 200px; margin: 10px 0;">
+                <div id="ocr-spinner" class="spinner hidden">Processing...</div>
+                <div id="ocr-results" class="ocr-results hidden">
+                    <div class="confidence-badge">
+                        Confidence: <span id="ocr-confidence">0</span>%
+                    </div>
+                    
+                    <div class="ocr-form-group">
+                        <label>First Name</label>
+                        <input type="text" id="ocr-first-name" placeholder="">
+                    </div>
+                    <div class="ocr-form-group">
+                        <label>Last Name</label>
+                        <input type="text" id="ocr-last-name" placeholder="">
+                    </div>
+                    <div class="ocr-form-group">
+                        <label>Email</label>
+                        <input type="email" id="ocr-email" placeholder="">
+                    </div>
+                    <div class="ocr-form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="ocr-phone" placeholder="">
+                    </div>
+                    <div class="ocr-form-group">
+                        <label>Mobile/Cell</label>
+                        <input type="tel" id="ocr-mobile" placeholder="">
+                    </div>
+                    <div class="ocr-form-group">
+                        <label>Company</label>
+                        <input type="text" id="ocr-company" placeholder="">
+                    </div>
+                    <div class="ocr-form-group">
+                        <label>Title</label>
+                        <input type="text" id="ocr-title" placeholder="">
+                    </div>
+                    
+                    <details class="ocr-raw-text">
+                        <summary>📄 Raw Extracted Text</summary>
+                        <pre id="ocr-extracted-text"></pre>
+                    </details>
+                    
+                    <div class="ocr-actions">
+                        <button type="button" class="btn btn-primary" onclick="importOCRContact()">✓ Import Contact</button>
+                        <button type="button" class="btn btn-secondary" onclick="resetOCRModal()">↻ Scan Another</button>
+                        <button type="button" class="btn btn-tertiary" onclick="closeOCRModal()">✕ Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Parse Contact Results & Duplicate Resolution -->
+    <div id="parse-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>📋 New Contact Preview</h2>
+                <button class="btn-close" onclick="closeParsModal()">✕</button>
+            </div>
+            
+            <div id="parse-content">
+                <!-- Confidence Badge -->
+                <div class="confidence-badge">
+                    Confidence: <span id="parse-confidence">0</span>%
+                </div>
+                
+                <!-- Parsed Contact Details -->
+                <div class="parse-section">
+                    <h3>Parsed Contact Data</h3>
+                    <div class="parse-fields">
+                        <div class="parse-field">
+                            <label>First Name:</label>
+                            <span id="parse-first-name" class="parse-value"></span>
+                        </div>
+                        <div class="parse-field">
+                            <label>Last Name:</label>
+                            <span id="parse-last-name" class="parse-value"></span>
+                        </div>
+                        <div class="parse-field">
+                            <label>Email:</label>
+                            <span id="parse-email" class="parse-value"></span>
+                        </div>
+                        <div class="parse-field">
+                            <label>Phone:</label>
+                            <span id="parse-phone" class="parse-value"></span>
+                        </div>
+                        <div class="parse-field">
+                            <label>Mobile:</label>
+                            <span id="parse-mobile" class="parse-value"></span>
+                        </div>
+                        <div class="parse-field">
+                            <label>Company:</label>
+                            <span id="parse-company" class="parse-value"></span>
+                        </div>
+                        <div class="parse-field">
+                            <label>Title:</label>
+                            <span id="parse-title" class="parse-value"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Duplicate Detection Results -->
+                <div id="duplicates-section" class="parse-section hidden">
+                    <h3>⚠️ Potential Duplicates Found</h3>
+                    <div id="duplicates-list" class="duplicates-list"></div>
+                    <p class="duplicate-note">Select an existing contact to update with new information, or create as new contact.</p>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="parse-actions">
+                    <button type="button" class="btn btn-primary" onclick="handleCreateNewContact()">
+                        + Create New Contact
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeParsModal()">
+                        Cancel
+                    </button>
+                </div>
+                
+                <!-- Raw text viewer -->
+                <details class="ocr-raw-text">
+                    <summary>📄 Raw Pasted Text</summary>
+                    <pre id="parse-raw-text"></pre>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Merging with Existing Contact -->
+    <div id="merge-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>🔄 Update Existing Contact</h2>
+                <button class="btn-close" onclick="closeMergeModal()">✕</button>
+            </div>
+            
+            <div id="merge-content">
+                <p class="merge-note">Review which fields to update in the existing contact:</p>
+                
+                <div class="merge-fields" id="merge-fields"></div>
+                
+                <div class="merge-actions">
+                    <button type="button" class="btn btn-primary" onclick="handleConfirmMerge()">
+                        ✓ Update Contact
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeMergeModal()">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
