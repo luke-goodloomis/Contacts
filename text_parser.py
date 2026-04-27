@@ -49,6 +49,7 @@ class TextParser:
             'mobile': '',
             'company': '',
             'title': '',
+            'phone_labels': {},  # Track which label each phone came from for UI display
             'raw_text': text
         }
         
@@ -59,8 +60,10 @@ class TextParser:
         
         # Parse phones with labels (D/M/O)
         labeled_phones = self._extract_labeled_phones(text)
+        phone_labels = labeled_phones.pop('_labels', {})
         if labeled_phones:
             contact.update(labeled_phones)
+        contact['phone_labels'] = phone_labels
         
         # If no labeled phones, try extracting plain phone numbers
         if not contact['phone'] and not contact['mobile']:
@@ -101,6 +104,7 @@ class TextParser:
             'mobile': '',
             'company': '',
             'title': '',
+            'phone_labels': {},
             'raw_text': ''
         }
     
@@ -122,8 +126,20 @@ class TextParser:
         """
         Extract phone numbers with labels (D=desk, M=mobile, O=office)
         Format: (D) 206-829-7330 | (M) 206-794-0762 | (O) 206-256-0800
+        
+        PHONE LABEL PRIORITY STRATEGY:
+        - (D) Desk phone → 'phone' field (primary contact)
+        - (M) Mobile phone → 'mobile' field (secondary contact)
+        - (O) Office phone → Use based on what's available:
+          * If 'phone' is empty, use (O) as 'phone'
+          * If 'mobile' is empty, use (O) as 'mobile'
+          * Otherwise skip (avoid overwriting)
+        
+        This strategy prioritizes (D) > (M) > (O), ensuring desk numbers
+        are captured in the main phone field when available.
         """
         result = {}
+        labels = {}  # Track which label each field came from
         
         # Find all labeled phone numbers
         matches = re.finditer(PHONE_LABEL_REGEX, text)
@@ -136,21 +152,27 @@ class TextParser:
                 continue
             
             if label == 'D':
-                # D = Desk, typically goes to 'phone' field
+                # (D) = Desk - highest priority, goes to 'phone' field
                 if not result.get('phone'):
                     result['phone'] = phone
+                    labels['phone'] = f"(D) Desk"
             elif label == 'M':
-                # M = Mobile, goes to 'mobile' field
+                # (M) = Mobile - goes to 'mobile' field
                 if not result.get('mobile'):
                     result['mobile'] = phone
+                    labels['mobile'] = f"(M) Mobile"
             elif label == 'O':
-                # O = Office, could be main company number
-                # If no phone yet, use it as phone; otherwise mobile
+                # (O) = Office - fills remaining slots based on priority
+                # Office numbers are often main company lines, so handle carefully
                 if not result.get('phone'):
                     result['phone'] = phone
+                    labels['phone'] = f"(O) Office"
                 elif not result.get('mobile'):
                     result['mobile'] = phone
+                    labels['mobile'] = f"(O) Office"
+                # If both phone and mobile are filled, don't overwrite
         
+        result['_labels'] = labels  # Include label info for display
         return result
     
     def _normalize_phone(self, phone: str) -> str:

@@ -260,10 +260,12 @@
                         <div class="parse-field">
                             <label>Phone:</label>
                             <span id="parse-phone" class="parse-value"></span>
+                            <small id="parse-phone-label" class="parse-label" style="color: #666; display: block; margin-top: 2px;"></small>
                         </div>
                         <div class="parse-field">
                             <label>Mobile:</label>
                             <span id="parse-mobile" class="parse-value"></span>
+                            <small id="parse-mobile-label" class="parse-label" style="color: #666; display: block; margin-top: 2px;"></small>
                         </div>
                         <div class="parse-field">
                             <label>Company:</label>
@@ -279,14 +281,25 @@
                 <!-- Duplicate Detection Results -->
                 <div id="duplicates-section" class="parse-section hidden">
                     <h3>⚠️ Potential Duplicates Found</h3>
+                    <p class="duplicate-note">We found existing contacts that might match. Select one to review and merge, or create as a new contact.</p>
                     <div id="duplicates-list" class="duplicates-list"></div>
-                    <p class="duplicate-note">Select an existing contact to update with new information, or create as new contact.</p>
+                </div>
+                
+                <!-- No Duplicates Found -->
+                <div id="no-duplicates-section" class="parse-section hidden">
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #e8f5e9; border-radius: 4px;">
+                        <span style="font-size: 24px;">✓</span>
+                        <div>
+                            <strong>No existing contacts match these details</strong>
+                            <p style="margin: 4px 0 0 0; color: #555;">This will be added as a new contact</p>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Action Buttons -->
-                <div class="parse-actions">
-                    <button type="button" class="btn btn-primary" onclick="handleCreateNewContact()">
-                        + Create New Contact
+                <div class="parse-actions" style="margin-top: 20px;">
+                    <button type="button" class="btn btn-primary" id="create-new-btn" onclick="handleCreateNewContact()">
+                        ✓ Create New Contact
                     </button>
                     <button type="button" class="btn btn-secondary" onclick="closeParsModal()">
                         Cancel
@@ -304,14 +317,18 @@
 
     <!-- Modal for Merging with Existing Contact -->
     <div id="merge-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
                 <h2>🔄 Update Existing Contact</h2>
                 <button class="btn-close" onclick="closeMergeModal()">✕</button>
             </div>
             
             <div id="merge-content">
-                <p class="merge-note">Review which fields to update in the existing contact:</p>
+                <div id="merge-target-info" style="padding: 12px; background: #f5f5f5; border-radius: 4px; margin-bottom: 16px;">
+                    <strong>Updating:</strong> <span id="merge-target-name"></span>
+                </div>
+                
+                <p class="merge-note">Review and select which values to use. New values from your paste are shown on the right.</p>
                 
                 <div class="merge-fields" id="merge-fields"></div>
                 

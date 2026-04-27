@@ -605,15 +605,33 @@ function displayParseResults(result) {
     document.getElementById('parse-company').textContent = result.contact.company || '(not found)';
     document.getElementById('parse-title').textContent = result.contact.title || '(not found)';
     document.getElementById('parse-raw-text').textContent = result.contact.raw_text || '';
+    
+    // Show phone labels to help users understand the parsing
+    const phoneLabels = result.contact.phone_labels || {};
+    document.getElementById('parse-phone-label').textContent = phoneLabels['phone'] || '';
+    document.getElementById('parse-mobile-label').textContent = phoneLabels['mobile'] || '';
+    
     console.log('[Display] Fields populated');
     
-    // Show/hide duplicates section
+    // Show/hide duplicates and no-duplicates sections
     const duplicatesSection = document.getElementById('duplicates-section');
+    const noDuplicatesSection = document.getElementById('no-duplicates-section');
+    
     if (result.has_duplicates && result.duplicates.length > 0) {
         duplicatesSection.classList.remove('hidden');
+        noDuplicatesSection.classList.add('hidden');
         renderDuplicatesList(result.duplicates);
     } else {
         duplicatesSection.classList.add('hidden');
+        noDuplicatesSection.classList.remove('hidden');
+    }
+    
+    // Enable/disable create button based on required fields
+    const createBtn = document.getElementById('create-new-btn');
+    const hasRequiredFields = result.contact.email && result.contact.first_name && result.contact.last_name;
+    createBtn.disabled = !hasRequiredFields;
+    if (!hasRequiredFields) {
+        createBtn.title = 'Email, First Name, and Last Name are required';
     }
     
     // Open modal
@@ -646,8 +664,8 @@ function renderDuplicatesList(duplicates) {
                 ${dup.phone ? `<div class="duplicate-field">Phone: ${dup.phone}</div>` : ''}
                 ${dup.mobile ? `<div class="duplicate-field">Mobile: ${dup.mobile}</div>` : ''}
             </div>
-            <button class="btn btn-secondary" onclick="selectDuplicateForMerge('${dup.email}')">
-                Select & Review
+            <button class="btn btn-primary" onclick="selectDuplicateForMerge('${dup.email}')">
+                ➜ Select & Review
             </button>
         </div>
     `).join('');
@@ -658,38 +676,98 @@ function selectDuplicateForMerge(email) {
     showMergeModal(email);
 }
 
-function showMergeModal(email) {
-    const mergeFields = document.getElementById('merge-fields');
-    
-    // Create comparison for each field
-    const fields = ['first_name', 'last_name', 'email', 'phone', 'mobile', 'company', 'title'];
-    
-    let html = '<div class="field-comparison">';
-    
-    fields.forEach(field => {
-        const newVal = currentParsedContact[field] || '';
-        const label = field.replace(/_/g, ' ').toUpperCase();
+async function showMergeModal(email) {
+    try {
+        // Fetch existing contact data to show comparison
+        const existingContact = await apiCall('/contacts', 'GET', { email });
         
-        html += `
-            <div class="comparison-row">
-                <div class="comparison-label">${label}</div>
-                <div class="comparison-input">
-                    <input 
-                        type="text" 
-                        id="merge-${field}"
-                        value="${newVal}"
-                        class="comparison-field"
-                    >
-                    <small>New value: ${newVal || '(empty)'}</small>
+        if (!existingContact || !existingContact.data) {
+            showToast('Could not load existing contact', 'error');
+            return;
+        }
+        
+        const contact = existingContact.data;
+        const mergeFields = document.getElementById('merge-fields');
+        
+        // Show which contact is being updated
+        document.getElementById('merge-target-name').textContent = 
+            `${contact.first_name} ${contact.last_name} (${contact.email})`;
+        
+        // Create side-by-side comparison for each field
+        const fields = ['first_name', 'last_name', 'email', 'phone', 'mobile', 'company', 'title'];
+        
+        let html = '<div class="field-comparison">';
+        
+        fields.forEach(field => {
+            const existingVal = contact[field] || '';
+            const newVal = currentParsedContact[field] || '';
+            const label = field.replace(/_/g, ' ').toUpperCase();
+            
+            // Show differences with visual indicators
+            const isDifferent = existingVal !== newVal && newVal !== '';
+            const differenceClass = isDifferent ? ' different' : '';
+            
+            html += `
+                <div class="comparison-row${differenceClass}">
+                    <div class="comparison-label">${label}</div>
+                    <div class="comparison-existing">
+                        <div class="comparison-header">Current</div>
+                        <input 
+                            type="text" 
+                            id="merge-existing-${field}"
+                            value="${existingVal}"
+                            class="comparison-field existing-field"
+                            disabled
+                        >
+                    </div>
+                    <div class="comparison-new">
+                        <div class="comparison-header">New (from paste)</div>
+                        <input 
+                            type="text" 
+                            id="merge-new-${field}"
+                            value="${newVal}"
+                            class="comparison-field new-field"
+                        >
+                    </div>
+                    <div class="comparison-choice">
+                        <label style="display: flex; align-items: center; gap: 6px;">
+                            <input 
+                                type="radio" 
+                                name="choice-${field}" 
+                                value="existing"
+                                onchange="updateMergeChoice('${field}')"
+                                ${!isDifferent || newVal === '' ? 'checked' : ''}
+                            >
+                            Keep Current
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px;">
+                            <input 
+                                type="radio" 
+                                name="choice-${field}" 
+                                value="new"
+                                onchange="updateMergeChoice('${field}')"
+                                ${isDifferent && newVal !== '' ? 'checked' : ''}
+                            >
+                            Use New
+                        </label>
+                    </div>
                 </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    mergeFields.innerHTML = html;
-    
-    document.getElementById('merge-modal').classList.remove('hidden');
+            `;
+        });
+        
+        html += '</div>';
+        mergeFields.innerHTML = html;
+        
+        document.getElementById('merge-modal').classList.remove('hidden');
+    } catch (error) {
+        console.error('[Merge Modal] Error:', error);
+        showToast(`Error loading existing contact: ${error.message}`, 'error');
+    }
+}
+
+function updateMergeChoice(field) {
+    // Helper function for future enhancements (e.g., highlighting, validation)
+    console.log(`[Merge] User chose for ${field}`);
 }
 
 async function handleConfirmMerge() {
@@ -699,16 +777,21 @@ async function handleConfirmMerge() {
             return;
         }
         
-        // Collect updated values from form
-        const updates = {
-            first_name: document.getElementById('merge-first_name').value.trim(),
-            last_name: document.getElementById('merge-last_name').value.trim(),
-            email: document.getElementById('merge-email').value.trim(),
-            phone: document.getElementById('merge-phone').value.trim(),
-            mobile: document.getElementById('merge-mobile').value.trim(),
-            company: document.getElementById('merge-company').value.trim(),
-            title: document.getElementById('merge-title').value.trim()
-        };
+        // Collect chosen values from radio buttons
+        const fields = ['first_name', 'last_name', 'email', 'phone', 'mobile', 'company', 'title'];
+        const updates = {};
+        
+        fields.forEach(field => {
+            const choice = document.querySelector(`input[name="choice-${field}"]:checked`);
+            if (choice && choice.value === 'new') {
+                const newValue = document.getElementById(`merge-new-${field}`).value.trim();
+                if (newValue) {
+                    updates[field] = newValue;
+                }
+            }
+        });
+        
+        console.log('[Merge] Updates to apply:', updates);
         
         // Call merge API
         const result = await apiCall('/merge-contact', 'POST', {
@@ -717,7 +800,7 @@ async function handleConfirmMerge() {
             merge_strategy: 'selective'
         });
         
-        showToast(`✓ Contact updated successfully! (${result.message})`, 'success');
+        showToast(`✓ Contact updated successfully!`, 'success');
         
         // Close modals and refresh
         closeMergeModal();
@@ -727,32 +810,29 @@ async function handleConfirmMerge() {
         loadStats();
         
     } catch (error) {
+        console.error('[Merge] Error:', error);
         showToast(`Merge Error: ${error.message}`, 'error');
     }
 }
 
 async function handleCreateNewContact() {
     try {
-        if (!currentParsedContact || !currentParsedContact.email) {
-            showToast('Contact must have at least an email address', 'error');
+        // Validate required fields (should not happen due to disabled button, but just in case)
+        if (!currentParsedContact || !currentParsedContact.email || 
+            !currentParsedContact.first_name || !currentParsedContact.last_name) {
+            showToast('Email, First Name, and Last Name are required', 'error');
             return;
         }
         
         const contact = {
             email: currentParsedContact.email,
-            first_name: currentParsedContact.first_name || 'Unknown',
-            last_name: currentParsedContact.last_name || 'Contact',
+            first_name: currentParsedContact.first_name,
+            last_name: currentParsedContact.last_name,
             company: currentParsedContact.company || '',
             phone: currentParsedContact.phone || '',
             mobile: currentParsedContact.mobile || '',
             notes: currentParsedContact.title ? `Title: ${currentParsedContact.title}` : ''
         };
-        
-        // Validate required fields
-        if (!contact.email || !contact.first_name || !contact.last_name) {
-            showToast('Email, First Name, and Last Name are required', 'error');
-            return;
-        }
         
         // Save contact
         await apiCall('/contacts', 'POST', contact);
@@ -766,6 +846,7 @@ async function handleCreateNewContact() {
         loadStats();
         
     } catch (error) {
+        console.error('[Create] Error:', error);
         showToast(`Error: ${error.message}`, 'error');
     }
 }

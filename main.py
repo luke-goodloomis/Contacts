@@ -55,6 +55,7 @@ class OCRResult(BaseModel):
     mobile: str = ""
     company: str = ""
     title: str = ""
+    phone_labels: Dict[str, str] = {}  # Track phone label sources for UI display
     confidence: float = 0.0
     extracted_text: str = ""
 
